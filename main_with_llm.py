@@ -77,6 +77,18 @@ class EnhancedConsoleUI(ConsoleUI):
             if get_available_providers():
                 providers = get_available_providers()
                 print_info(f"可用LLM提供商: {', '.join(providers)}")
+
+                # 显示当前选择的提供商和模型
+                current_provider = GAME_CONFIG.get("llm_provider", "未选择")
+                if current_provider in providers:
+                    model_key = GAME_CONFIG.get("llm_model_key")
+                    if current_provider == "siliconflow" and model_key:
+                        from config import get_model_display_name
+                        model_display = get_model_display_name(current_provider, model_key)
+                        print_info(f"当前配置: 硅基流动 - {model_display}")
+                    else:
+                        model_type = GAME_CONFIG.get("llm_model_type", "fast")
+                        print_info(f"当前配置: {current_provider.upper()} - {model_type}")
             else:
                 print_info("未配置LLM API密钥")
 
@@ -105,7 +117,7 @@ class EnhancedConsoleUI(ConsoleUI):
 
     def select_llm_provider(self):
         """选择LLM提供商"""
-        from ui.utils import show_menu, print_success, wait_for_enter
+        from ui.utils import show_menu, print_success, wait_for_enter, print_info
 
         providers = get_available_providers()
         if not providers:
@@ -115,9 +127,71 @@ class EnhancedConsoleUI(ConsoleUI):
 
         if choice < len(providers):
             selected_provider = providers[choice]
-            GAME_CONFIG["llm_provider"] = selected_provider
-            print_success(f"已选择 {selected_provider.upper()} 作为LLM提供商")
+
+            # 如果选择硅基流动，进入模型选择
+            if selected_provider == "siliconflow":
+                selected_model = self.select_siliconflow_model()
+                if selected_model:
+                    GAME_CONFIG["llm_provider"] = selected_provider
+                    GAME_CONFIG["llm_model_key"] = selected_model
+                    from config import get_model_display_name
+                    model_display = get_model_display_name(selected_provider, selected_model)
+                    print_success(f"已选择 硅基流动 - {model_display}")
+                    wait_for_enter()
+            else:
+                GAME_CONFIG["llm_provider"] = selected_provider
+                print_success(f"已选择 {selected_provider.upper()} 作为LLM提供商")
+                wait_for_enter()
+
+    def select_siliconflow_model(self):
+        """选择硅基流动的具体模型"""
+        from ui.utils import clear_screen, print_title, show_menu, print_info, print_success, wait_for_enter
+        from config import get_siliconflow_models
+
+        model_categories = get_siliconflow_models()
+        if not model_categories:
+            print_info("硅基流动模型配置未找到")
             wait_for_enter()
+            return None
+
+        while True:
+            clear_screen()
+            print_title("选择硅基流动模型")
+            print_info("硅基流动提供多种模型选择，请根据需要选择：")
+
+            # 显示分类菜单
+            categories = list(model_categories.keys())
+            choice = show_menu("选择模型分类", categories + ["返回"])
+
+            if choice < len(categories):
+                category_name = categories[choice]
+                selected_model = self.select_model_from_category(category_name, model_categories[category_name])
+                if selected_model:
+                    return selected_model
+            else:
+                return None
+
+    def select_model_from_category(self, category_name: str, models: dict):
+        """从指定分类中选择模型"""
+        from ui.utils import clear_screen, print_title, show_menu, print_info
+
+        clear_screen()
+        print_title(f"选择模型 - {category_name}")
+
+        # 创建模型选择列表
+        model_options = []
+        model_keys = []
+
+        for model_key, model_display in models.items():
+            model_options.append(model_display)
+            model_keys.append(model_key)
+
+        choice = show_menu("选择具体模型", model_options + ["返回上级", "返回主菜单"])
+
+        if choice < len(model_options):
+            return model_keys[choice]
+        else:
+            return None
 
     def start_game_flow(self):
         """开始游戏流程（增强版）"""
@@ -157,24 +231,41 @@ class EnhancedConsoleUI(ConsoleUI):
 
     def create_llm_ai_team(self):
         """创建LLM AI队伍"""
-        # 自动使用可用的提供商
+        # 使用配置中指定的提供商，如果没有则使用第一个可用的
+        provider = GAME_CONFIG.get("llm_provider")
         available_providers = get_available_providers()
+
         if not available_providers:
             from ui.utils import print_error
             print_error("没有可用的LLM提供商，降级使用算法AI")
             return AIPlayerFactory.create_ai_team(Difficulty.MEDIUM)
 
-        provider = available_providers[0]  # 使用第一个可用的提供商
-        model_type = GAME_CONFIG.get("llm_model_type", "fast")
+        if not provider or provider not in available_providers:
+            provider = available_providers[0]
 
         try:
-            config = get_llm_config(provider, model_type)
+            # 检查是否有指定的模型key（用于硅基流动等）
+            model_key = GAME_CONFIG.get("llm_model_key")
+
+            if provider == "siliconflow" and model_key:
+                # 使用指定的硅基流动模型
+                from config import get_llm_config_with_model, get_model_display_name
+                config = get_llm_config_with_model(provider, model_key)
+                model_display = get_model_display_name(provider, model_key)
+
+                from ui.utils import print_info
+                print_info(f"使用 硅基流动 - {model_display}")
+            else:
+                # 使用传统的模型类型选择
+                model_type = GAME_CONFIG.get("llm_model_type", "fast")
+                config = get_llm_config(provider, model_type)
+
+                from ui.utils import print_info
+                print_info(f"使用 {provider.upper()} 提供的LLM AI")
+
             ai_names = ["AI助手", "智能对手"]
-
-            from ui.utils import print_info
-            print_info(f"使用 {provider.upper()} 提供的LLM AI")
-
             llm_players = []
+
             for i, name in enumerate(ai_names):
                 player = create_llm_player(
                     name=name,

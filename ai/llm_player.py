@@ -31,7 +31,8 @@ class LLMConfig:
             "openai": "https://api.openai.com/v1",
             "anthropic": "https://api.anthropic.com",
             "deepseek": "https://api.deepseek.com",
-            "moonshot": "https://api.moonshot.cn/v1"
+            "moonshot": "https://api.moonshot.cn/v1",
+            "siliconflow": "https://api.siliconflow.cn/v1"
         }
         return urls.get(provider, "")
 
@@ -59,6 +60,8 @@ class LLMAPIClient:
             return await self._anthropic_completion(prompt)
         elif self.config.provider == "deepseek":
             return await self._deepseek_completion(prompt)
+        elif self.config.provider == "siliconflow":
+            return await self._siliconflow_completion(prompt)
         else:
             raise ValueError(f"不支持的提供商: {self.config.provider}")
 
@@ -115,6 +118,38 @@ class LLMAPIClient:
         """DeepSeek API调用"""
         # DeepSeek使用类似OpenAI的接口
         return await self._openai_completion(prompt)
+
+    async def _siliconflow_completion(self, prompt: str) -> str:
+        """硅基流动 API调用"""
+        # 硅基流动使用类似OpenAI的接口格式
+        headers = {
+            "Authorization": f"Bearer {self.config.api_key}",
+            "Content-Type": "application/json"
+        }
+
+        data = {
+            "model": self.config.model,
+            "messages": [
+                {"role": "system", "content": "你是一个专业的斗地主AI玩家，擅长分析局势和制定策略。"},
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": self.config.max_tokens,
+            "temperature": self.config.temperature,
+            "stream": False
+        }
+
+        async with self.session.post(
+            f"{self.config.base_url}/chat/completions",
+            headers=headers,
+            json=data
+        ) as response:
+            result = await response.json()
+
+            # 检查是否有错误
+            if "error" in result:
+                raise Exception(f"硅基流动API错误: {result['error']['message']}")
+
+            return result["choices"][0]["message"]["content"]
 
 
 class LLMPlayer(Player):
@@ -265,56 +300,59 @@ class LLMPlayer(Player):
 - 当前回合：{game_state.get('round_count', 0)}
 """
 
-        # 检查上一手牌是否是自己出的
+        # 分析当前游戏状态
         current_player_idx = game_state.get('current_player_idx', 0)
         last_player_idx = game_state.get('last_player_idx', None)
-        is_own_last_play = (last_player_idx == current_player_idx)
+        pass_count = game_state.get('pass_count', 0)
 
         # 上一手牌信息和跟牌要求
         last_play_info = ""
         follow_requirement = ""
-        if last_pattern and not is_own_last_play:
-            # 有上一手牌且不是自己出的，需要跟牌
+
+        if last_pattern is None:
+            # 情况1: 无上一手牌 - 开局或轮次结束后获得主动权
+            last_play_info = """
+## 当前状态
+- 你拥有主动出牌权
+- 这是新的一轮开始（开局或上轮结束后）
+"""
+            follow_requirement = """
+## 主动出牌
+**你可以自由选择任何合法的牌型组合！**
+- 可以出任何有效的牌型：单张、对子、三张、顺子等
+- 建议选择最优的牌型组合来控制局面
+- 考虑手牌结构，优先出难以搭配的牌
+"""
+        else:
+            # 情况2: 有上一手牌，需要分析是否需要跟牌
             last_cards = [card.value for card in last_pattern.cards]
             type_name = RuleEngine.get_card_type_name(last_pattern.card_type)
+
+            # 关键逻辑：如果上一手牌存在，当前玩家必须跟牌或过牌
+            # 只有当连续2人过牌后，系统才会清除last_pattern，进入新轮次
             last_play_info = f"""
 ## 上一手牌
 - 牌型：{type_name}
 - 牌值：{last_cards}
 - 张数：{len(last_pattern.cards)}张
-- 出牌玩家：玩家{last_player_idx}（对手）
+- 出牌玩家：玩家{last_player_idx}
+- 已过牌人数：{pass_count}
 """
             follow_requirement = f"""
 ## 跟牌要求
-**重要：你需要跟上对手的牌，必须满足以下条件：**
-1. 牌型必须与上一手相同（{type_name}）
-2. 张数必须相同（{len(last_pattern.cards)}张）
-3. 主牌值必须大于上一手的主牌值（{last_pattern.main_value}）
-4. 炸弹和王炸可以压任何牌型
+**你必须跟上这手牌或选择过牌：**
+1. 跟牌条件：
+   - 牌型必须与上一手相同（{type_name}）
+   - 张数必须相同（{len(last_pattern.cards)}张）
+   - 主牌值必须大于{last_pattern.main_value}
+   - 或者使用炸弹/王炸压制
 
-**如果无法满足跟牌条件，必须选择"pass"!**
+2. 过牌条件：
+   - 无法满足跟牌条件时必须选择"pass"
+   - 过牌后如果连续2人过牌，出牌者将获得下轮主动权
+
+**重要：除非使用炸弹/王炸，否则必须出相同牌型！**
 """
-        elif last_pattern and is_own_last_play:
-            # 上一手牌是自己出的，已经过了一轮
-            last_cards = [card.value for card in last_pattern.cards]
-            type_name = RuleEngine.get_card_type_name(last_pattern.card_type)
-            last_play_info = f"""
-## 上一手牌
-- 牌型：{type_name}（你上次出的牌）
-- 牌值：{last_cards}
-- 其他玩家都选择了过牌，轮到你主动出牌
-"""
-            follow_requirement = """
-## 主动出牌
-**你可以自由选择任何合法的牌型组合！**
-- 不需要比上一手牌大（因为是你自己出的）
-- 可以出任何有效的牌型：单张、对子、三张、顺子等
-- 建议选择最优的牌型组合来清空手牌
-"""
-        else:
-            # 没有上一手牌，主动出牌
-            last_play_info = "\n## 上一手牌\n无人出牌，你可以主动出牌"
-            follow_requirement = "\n## 主动出牌\n你可以出任何合法的牌型组合"
 
         # 分析对手威胁等级
         threat_level = "低"
@@ -544,38 +582,37 @@ class LLMPlayer(Player):
                 }
 
             # 2. 检查是否需要跟牌
-            current_player_idx = game_state.get('current_player_idx', 0)
-            last_player_idx = game_state.get('last_player_idx', None)
-            is_own_last_play = (last_player_idx == current_player_idx)
-
-            if last_pattern and not is_own_last_play:
-                # 需要跟牌，检查是否能跟上
+            if last_pattern is not None:
+                # 有上一手牌存在，必须能够跟上或使用炸弹/王炸
                 if not RuleEngine.can_follow(cards_to_play, last_pattern):
                     card_values = [card.value for card in cards_to_play]
                     last_cards = [card.value for card in last_pattern.cards]
                     last_type = RuleEngine.get_card_type_name(last_pattern.card_type)
                     current_type = RuleEngine.get_card_type_name(pattern.card_type)
 
-                    if pattern.card_type != last_pattern.card_type:
-                        return {
-                            "valid": False,
-                            "error_message": f"牌型不匹配: 上家出的是{last_type}({last_cards})，你出的是{current_type}({card_values})。必须出相同牌型或炸弹/王炸。"
-                        }
-                    elif len(cards_to_play) != len(last_pattern.cards):
-                        return {
-                            "valid": False,
-                            "error_message": f"张数不匹配: 上家出了{len(last_pattern.cards)}张牌，你出了{len(cards_to_play)}张牌。必须出相同张数的牌。"
-                        }
-                    elif pattern.main_value <= last_pattern.main_value:
-                        return {
-                            "valid": False,
-                            "error_message": f"牌值太小: 上家的主牌值是{last_pattern.main_value}，你的主牌值是{pattern.main_value}。必须出更大的牌。"
-                        }
-                    else:
-                        return {
-                            "valid": False,
-                            "error_message": f"无法跟上: {card_values}无法跟上家的{last_cards}。请重新选择或过牌。"
-                        }
+                    # 检查是否是炸弹或王炸（可以压任何牌型）
+                    from game.rules import CardType
+                    if pattern.card_type not in [CardType.BOMB, CardType.ROCKET]:
+                        if pattern.card_type != last_pattern.card_type:
+                            return {
+                                "valid": False,
+                                "error_message": f"牌型不匹配: 上家出的是{last_type}({last_cards})，你出的是{current_type}({card_values})。必须出相同牌型或炸弹/王炸。"
+                            }
+                        elif len(cards_to_play) != len(last_pattern.cards):
+                            return {
+                                "valid": False,
+                                "error_message": f"张数不匹配: 上家出了{len(last_pattern.cards)}张牌，你出了{len(cards_to_play)}张牌。必须出相同张数的牌。"
+                            }
+                        elif pattern.main_value <= last_pattern.main_value:
+                            return {
+                                "valid": False,
+                                "error_message": f"牌值太小: 上家的主牌值是{last_pattern.main_value}，你的主牌值是{pattern.main_value}。必须出更大的牌。"
+                            }
+                        else:
+                            return {
+                                "valid": False,
+                                "error_message": f"无法跟上: {card_values}无法跟上家的{last_cards}。请重新选择或过牌。"
+                            }
 
             # 3. 检查牌是否真的在手牌中
             hand_value_count = {}
@@ -621,7 +658,8 @@ def create_llm_player(name: str, player_id: int, provider: str,
         "openai": "gpt-4o-mini",
         "anthropic": "claude-3-haiku-20240307",
         "deepseek": "deepseek-chat",
-        "moonshot": "moonshot-v1-8k"
+        "moonshot": "moonshot-v1-8k",
+        "siliconflow": "Qwen/Qwen2.5-7B-Instruct"
     }
 
     if not model:
