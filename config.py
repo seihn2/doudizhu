@@ -1,0 +1,144 @@
+"""
+项目配置文件
+包含API密钥、模型配置等
+"""
+
+import os
+from typing import Dict, Any
+
+# LLM API配置
+LLM_CONFIGS = {
+    "openai": {
+        "api_key": os.getenv("OPENAI_API_KEY", ""),
+        "base_url": "https://api.openai.com/v1",
+        "models": {
+            "fast": "gpt-4o-mini",
+            "smart": "gpt-4o",
+            "cheap": "gpt-3.5-turbo"
+        }
+    },
+    "anthropic": {
+        "api_key": os.getenv("ANTHROPIC_API_KEY", ""),
+        "base_url": "https://api.anthropic.com",
+        "models": {
+            "fast": "claude-3-haiku-20240307",
+            "smart": "claude-3-sonnet-20240229",
+            "cheap": "claude-3-haiku-20240307"
+        }
+    },
+    "deepseek": {
+        "api_key": os.getenv("DEEPSEEK_API_KEY", ""),
+        "base_url": "https://api.deepseek.com",
+        "models": {
+            "fast": "deepseek-chat",
+            "smart": "deepseek-coder",
+            "cheap": "deepseek-chat"
+        }
+    },
+    "moonshot": {
+        "api_key": os.getenv("MOONSHOT_API_KEY", ""),
+        "base_url": "https://api.moonshot.cn/v1",
+        "models": {
+            "fast": "moonshot-v1-8k",
+            "smart": "moonshot-v1-32k",
+            "cheap": "moonshot-v1-8k"
+        }
+    }
+}
+
+# 游戏配置
+GAME_CONFIG = {
+    "default_ai_difficulty": "medium",  # easy, medium, hard
+    "enable_llm_ai": False,  # 是否启用LLM AI
+    "llm_provider": "deepseek",  # 默认LLM提供商
+    "llm_model_type": "fast",  # fast, smart, cheap
+    "max_thinking_time": 10.0,  # AI最大思考时间（秒）
+    "auto_continue": False,  # 是否自动继续游戏
+    "show_ai_reasoning": True,  # 是否显示AI推理过程
+}
+
+# UI配置
+UI_CONFIG = {
+    "enable_colors": True,  # 是否启用彩色输出
+    "show_debug_info": False,  # 是否显示调试信息
+    "card_display_style": "unicode",  # unicode, ascii
+}
+
+def get_llm_config(provider: str = None, model_type: str = "fast") -> Dict[str, Any]:
+    """获取LLM配置"""
+    # 如果没有指定提供商，自动选择可用的
+    if provider is None:
+        available_providers = get_available_providers()
+        if available_providers:
+            provider = available_providers[0]
+        else:
+            raise ValueError("没有可用的LLM提供商，请配置API密钥")
+
+    if provider not in LLM_CONFIGS:
+        raise ValueError(f"不支持的LLM提供商: {provider}")
+
+    config = LLM_CONFIGS[provider].copy()
+
+    if model_type in config["models"]:
+        config["model"] = config["models"][model_type]
+    else:
+        config["model"] = config["models"]["fast"]
+
+    return config
+
+def validate_llm_config(provider: str) -> bool:
+    """验证LLM配置是否有效"""
+    config = LLM_CONFIGS.get(provider, {})
+    api_key = config.get("api_key", "")
+
+    if not api_key:
+        print(f"警告：未设置{provider.upper()}的API密钥")
+        return False
+
+    # 检查API密钥长度，不同提供商格式不同
+    if len(api_key) < 10:
+        print(f"警告：{provider.upper()}的API密钥长度可能不正确")
+        return False
+
+    return True
+
+def get_available_providers() -> list:
+    """获取可用的LLM提供商列表"""
+    available = []
+    for provider in LLM_CONFIGS.keys():
+        if validate_llm_config(provider):
+            available.append(provider)
+    return available
+
+# 环境变量示例（需要在系统中设置）
+EXAMPLE_ENV_VARS = """
+# 在系统环境变量或.env文件中设置以下变量：
+
+# OpenAI
+export OPENAI_API_KEY="sk-your-openai-key-here"
+
+# Anthropic (Claude)
+export ANTHROPIC_API_KEY="sk-ant-your-anthropic-key-here"
+
+# DeepSeek
+export DEEPSEEK_API_KEY="sk-your-deepseek-key-here"
+
+# Moonshot
+export MOONSHOT_API_KEY="sk-your-moonshot-key-here"
+"""
+
+if __name__ == "__main__":
+    print("=== LLM配置检查 ===")
+
+    for provider in LLM_CONFIGS.keys():
+        config = get_llm_config(provider)
+        has_key = bool(config.get("api_key"))
+        status = "[OK]" if has_key else "[NO]"
+        print(f"{provider.upper()}: {status} API密钥")
+
+    print(f"\n可用提供商: {get_available_providers()}")
+
+    if not get_available_providers():
+        print("\n" + "="*50)
+        print("需要设置API密钥才能使用LLM AI功能")
+        print(EXAMPLE_ENV_VARS)
