@@ -67,7 +67,7 @@ export OPENAI_API_KEY="sk-your-openai-key-here"
 
 # 永久设置（添加到 ~/.bashrc 或 ~/.zshrc）
 echo 'export OPENAI_API_KEY="sk-your-openai-key-here"' >> ~/.bashrc
-echo 'export DEEPSEEK_API_KEY="sk-7d5a725ef8b54398b17bf6468dc2b674"' >> ~/.bashrc
+echo 'export DEEPSEEK_API_KEY="sk-"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
