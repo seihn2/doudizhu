@@ -1,42 +1,56 @@
-# AI斗地主 - 本地单人版
+# AI斗地主游戏
 
-基于Python的AI斗地主游戏，支持本地单人模式，玩家与两个AI对手进行经典斗地主对战。
+一个基于Python后端和React前端的在线斗地主游戏，支持与AI对手对战。同时保留了原版控制台游戏。
 
-## 项目特色
+## 功能特色
 
-- 🎮 经典斗地主规则实现
-- 🤖 智能AI对手
-- 💻 本地运行，无需网络
-- 🎯 简洁易用的命令行界面
-- ⚡ 快速响应的游戏体验
+- 🎮 **完整的斗地主游戏逻辑** - 支持标准斗地主规则
+- 🤖 **智能AI对手** - 基于策略算法的AI玩家
+- 🌐 **实时多人对战** - WebSocket实时通信
+- 💻 **现代化界面** - React + Ant Design精美UI
+- 📱 **响应式设计** - 支持桌面和移动设备
+- 🎯 **原版控制台** - 保留经典命令行版本
 
-## 技术架构
+## 技术栈
 
-### 目录结构
+### 后端
+- **FastAPI** - 现代、快速的Web框架
+- **WebSocket** - 实时双向通信
+- **Python** - 游戏逻辑和AI算法
+
+### 前端
+- **React 18** - 现代React框架
+- **Ant Design** - 企业级UI组件库
+- **Zustand** - 轻量级状态管理
+- **WebSocket** - 实时通信
+
+## 项目结构
+
 ```
 doudizhu/
-├── main.py                 # 游戏入口
-├── requirements.txt        # 依赖包
-├── game/                   # 游戏核心模块
-│   ├── __init__.py
+├── backend/                 # FastAPI后端
+│   ├── main.py             # 应用入口
+│   ├── models/             # 数据模型
+│   ├── websocket/          # WebSocket处理
+│   └── requirements.txt    # Python依赖
+├── frontend/               # React前端
+│   ├── src/
+│   │   ├── components/     # React组件
+│   │   ├── services/       # API服务
+│   │   ├── hooks/          # React hooks
+│   │   └── store/          # 状态管理
+│   └── package.json        # Node.js依赖
+├── game/                   # 游戏核心逻辑
 │   ├── cards.py           # 卡牌系统
 │   ├── rules.py           # 游戏规则
 │   ├── game_state.py      # 游戏状态管理
 │   └── player.py          # 玩家基类
-├── ai/                     # AI模块
-│   ├── __init__.py
-│   ├── ai_player.py       # AI玩家实现
+├── ai/                     # AI系统
+│   ├── ai_player.py       # AI玩家
 │   ├── strategy.py        # AI策略
 │   └── card_analyzer.py   # 牌型分析
-├── ui/                     # 用户界面
-│   ├── __init__.py
-│   ├── console_ui.py      # 控制台界面
-│   └── utils.py           # UI工具函数
-└── tests/                  # 测试文件
-    ├── __init__.py
-    ├── test_cards.py
-    ├── test_rules.py
-    └── test_ai.py
+└── ui/                     # 控制台界面（原版）
+    └── console_ui.py
 ```
 
 ### 核心模块说明
@@ -66,28 +80,90 @@ doudizhu/
 
 ## 快速开始
 
-### 1. 安装依赖
+### 环境要求
+
+- Python 3.8+
+- Node.js 16+
+- npm 或 yarn
+
+### 安装依赖
+
+**后端依赖:**
 ```bash
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```
 
-### 2. 启动游戏
-
-#### 🚀 推荐方式（自动检测）
+**前端依赖:**
 ```bash
-python start_game.py
+cd frontend
+npm install
 ```
 
-#### 🎮 手动选择版本
+### 启动应用
+
+**1. 启动后端服务:**
 ```bash
-# 基础版（算法AI + 出牌推荐）
+cd backend
 python main.py
+```
+后端服务将在 http://localhost:8000 启动
 
-# 增强版（LLM AI + 出牌推荐，需要API密钥）
-python main_with_llm.py
+**2. 启动前端应用:**
+```bash
+cd frontend
+npm start
+```
+前端应用将在 http://localhost:3000 启动
+
+### 游戏说明
+
+1. **创建/加入房间** - 输入玩家名称，选择快速开始或加入指定房间
+2. **等待玩家** - 房间需要3名玩家才能开始游戏
+3. **叫地主** - 系统自动分配地主（简化实现）
+4. **开始游戏** - 按顺序出牌，遵循斗地主规则
+5. **胜利条件** - 最先出完手牌的玩家获胜
+
+## API文档
+
+启动后端服务后，访问 http://localhost:8000/docs 查看自动生成的API文档。
+
+## WebSocket事件
+
+### 客户端发送
+- `play_cards` - 出牌
+- `pass` - 过牌
+- `chat` - 聊天消息
+
+### 服务端推送
+- `player_joined` - 玩家加入
+- `player_left` - 玩家离开
+- `game_state` - 游戏状态更新
+- `game_start` - 游戏开始
+- `game_end` - 游戏结束
+- `chat` - 聊天消息广播
+
+## 开发说明
+
+### 后端开发
+- 游戏逻辑在 `game/` 目录中，已经实现完整的斗地主规则
+- AI系统在 `ai/` 目录中，支持不同难度的AI策略
+- WebSocket处理在 `backend/websocket/` 中
+
+### 前端开发
+- 组件开发遵循Ant Design设计规范
+- 状态管理使用Zustand，简单易用
+- WebSocket连接通过自定义Hook管理
+
+## 原版控制台游戏
+
+项目保留了原始的控制台版本，可以通过以下方式体验：
+
+```bash
+python main.py              # 人机对战
+python main_with_llm.py     # LLM增强版（需要配置API）
 ```
 
-### 3. LLM AI设置（可选）
+### LLM AI设置（控制台版）
 
 如果想体验更智能的AI对手，可以设置API密钥：
 
@@ -105,10 +181,14 @@ export DEEPSEEK_API_KEY=sk-your-deepseek-key-here
 - Anthropic Claude
 - Moonshot AI
 
-### 4. 游戏特色
+## 许可证
 
-✨ **最新增强功能**：
-- 🛡️ **智能错误防护** - 无效牌型自动拦截
-- 🤖 **出牌推荐系统** - AI级别的策略建议
-- 🔥 **激进AI对手** - 更具挑战性的游戏体验
-- ⚙️ **灵活配置** - 可自定义各种游戏设置
+MIT License - 详见 [LICENSE](LICENSE) 文件
+
+## 贡献
+
+欢迎提交Issue和Pull Request！
+
+---
+
+🎮 享受游戏，与AI一较高下！
