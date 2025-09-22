@@ -21,6 +21,7 @@ from game.player import Player
 from ai.ai_player import AIPlayer
 from websocket.connection_manager import ConnectionManager
 from models.game_models import GameRoom, PlayerInfo
+from single_game_api import get_game_manager
 
 app = FastAPI(title="斗地主游戏后端", version="1.0.0")
 
@@ -36,6 +37,7 @@ app.add_middleware(
 # 全局状态管理
 connection_manager = ConnectionManager()
 game_rooms: Dict[str, GameRoom] = {}
+single_game_manager = get_game_manager()
 
 @app.get("/")
 async def root():
@@ -67,6 +69,62 @@ async def get_rooms():
         }
         for room in game_rooms.values()
     ]
+
+# 单人游戏API
+@app.post("/api/single-game/create")
+async def create_single_game(player_name: str):
+    """创建单人游戏"""
+    import uuid
+    game_id = str(uuid.uuid4())[:8]
+    result = single_game_manager.create_game(game_id, player_name)
+
+    if 'error' in result:
+        return {"success": False, "error": result['error']}
+
+    return {
+        "success": True,
+        "game_id": game_id,
+        "game_state": result
+    }
+
+@app.get("/api/single-game/{game_id}")
+async def get_single_game_state(game_id: str):
+    """获取单人游戏状态"""
+    result = single_game_manager.get_game_state(game_id)
+
+    if 'error' in result:
+        return {"success": False, "error": result['error']}
+
+    return {
+        "success": True,
+        "game_state": result
+    }
+
+@app.post("/api/single-game/{game_id}/play")
+async def play_cards_single_game(game_id: str, cards: List[dict]):
+    """单人游戏出牌"""
+    result = single_game_manager.play_cards(game_id, cards)
+
+    if 'error' in result:
+        return {"success": False, "error": result['error']}
+
+    return {
+        "success": True,
+        "game_state": result
+    }
+
+@app.post("/api/single-game/{game_id}/pass")
+async def pass_turn_single_game(game_id: str):
+    """单人游戏过牌"""
+    result = single_game_manager.pass_turn(game_id)
+
+    if 'error' in result:
+        return {"success": False, "error": result['error']}
+
+    return {
+        "success": True,
+        "game_state": result
+    }
 
 @app.websocket("/ws/{room_id}/{player_name}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str, player_name: str):
